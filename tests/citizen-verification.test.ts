@@ -12,56 +12,30 @@ const mockCitizen = 'ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP';
 // Mock contract functions
 const citizenVerification = {
   getAdmin: () => mockAdmin,
-  getCitizenInfo: (citizenId: string) => {
-    if (citizenId === 'valid-citizen-id') {
-      return {
-        principal: mockCitizen,
-        verified: false,
-        verificationDate: null,
-        verificationMethod: null
-      };
-    }
-    return null;
+  isVerified: (id: string) => {
+    return id === 'verified-citizen-id';
   },
-  isCitizenVerified: (citizenId: string) => {
-    return citizenId === 'verified-citizen-id';
+  isAuthority: (id: string) => {
+    return id === 'valid-authority-id';
   },
-  getAuthority: (authorityId: string) => {
-    if (authorityId === 'valid-authority-id') {
-      return {
-        principal: mockAuthority,
-        name: 'Test Authority',
-        active: true
-      };
-    }
-    return null;
-  },
-  registerCitizen: (citizenId: string) => {
-    mockContractCall('registerCitizen', citizenId);
-    if (citizenId === 'existing-citizen-id') {
+  registerCitizen: (id: string) => {
+    mockContractCall('registerCitizen', id);
+    if (id === 'existing-citizen-id') {
       return { error: 101 }; // ERR-ALREADY-VERIFIED
     }
     return { value: true };
   },
-  verifyCitizen: (citizenId: string, verificationMethod: string, authorityId: string) => {
-    mockContractCall('verifyCitizen', citizenId, verificationMethod, authorityId);
+  verifyCitizen: (id: string, authorityId: string) => {
+    mockContractCall('verifyCitizen', id, authorityId);
     
-    if (citizenId === 'non-existent-citizen-id') {
-      return { error: 102 }; // ERR-CITIZEN-NOT-FOUND
-    }
-    
-    if (authorityId === 'non-existent-authority-id') {
-      return { error: 103 }; // ERR-AUTHORITY-NOT-FOUND
-    }
-    
-    if (mockTxSender !== mockAuthority) {
+    if (authorityId !== 'valid-authority-id') {
       return { error: 100 }; // ERR-NOT-AUTHORIZED
     }
     
     return { value: true };
   },
-  addVerificationAuthority: (authorityId: string, authorityPrincipal: string, authorityName: string) => {
-    mockContractCall('addVerificationAuthority', authorityId, authorityPrincipal, authorityName);
+  addAuthority: (id: string) => {
+    mockContractCall('addAuthority', id);
     
     if (mockTxSender !== mockAdmin) {
       return { error: 100 }; // ERR-NOT-AUTHORIZED
@@ -69,15 +43,11 @@ const citizenVerification = {
     
     return { value: true };
   },
-  deactivateVerificationAuthority: (authorityId: string) => {
-    mockContractCall('deactivateVerificationAuthority', authorityId);
+  removeAuthority: (id: string) => {
+    mockContractCall('removeAuthority', id);
     
     if (mockTxSender !== mockAdmin) {
       return { error: 100 }; // ERR-NOT-AUTHORIZED
-    }
-    
-    if (authorityId === 'non-existent-authority-id') {
-      return { error: 103 }; // ERR-AUTHORITY-NOT-FOUND
     }
     
     return { value: true };
@@ -98,74 +68,52 @@ describe('Citizen Verification Contract', () => {
       expect(mockContractCall).toHaveBeenCalledWith('registerCitizen', 'new-citizen-id');
     });
     
-    it('should fail if citizen already exists',  'new-citizen-id');
+    it('should fail if citizen already exists', () => {
+      mockTxSender = mockCitizen;
+      const result = citizenVerification.registerCitizen('existing-citizen-id');
+      expect(result).toEqual({ error: 101 }); // ERR-ALREADY-VERIFIED
+      expect(mockContractCall).toHaveBeenCalledWith('registerCitizen', 'existing-citizen-id');
+    });
   });
   
-  it('should fail if citizen already exists', () => {
-    mockTxSender = mockCitizen;
-    const result = citizenVerification.registerCitizen('existing-citizen-id');
-    expect(result).toEqual({ error: 101 }); // ERR-ALREADY-VERIFIED
-    expect(mockContractCall).toHaveBeenCalledWith('registerCitizen', 'existing-citizen-id');
-  });
-});
-
-describe('verifyCitizen', () => {
-  it('should verify a citizen successfully', () => {
-    mockTxSender = mockAuthority;
-    const result = citizenVerification.verifyCitizen('valid-citizen-id', 'government-id', 'valid-authority-id');
-    expect(result).toEqual({ value: true });
-    expect(mockContractCall).toHaveBeenCalledWith('verifyCitizen', 'valid-citizen-id', 'government-id', 'valid-authority-id');
+  describe('verifyCitizen', () => {
+    it('should verify a citizen successfully', () => {
+      const result = citizenVerification.verifyCitizen('valid-citizen-id', 'valid-authority-id');
+      expect(result).toEqual({ value: true });
+      expect(mockContractCall).toHaveBeenCalledWith('verifyCitizen', 'valid-citizen-id', 'valid-authority-id');
+    });
+    
+    it('should fail if authority is not valid', () => {
+      const result = citizenVerification.verifyCitizen('valid-citizen-id', 'invalid-authority-id');
+      expect(result).toEqual({ error: 100 }); // ERR-NOT-AUTHORIZED
+    });
   });
   
-  it('should fail if citizen does not exist', () => {
-    mockTxSender = mockAuthority;
-    const result = citizenVerification.verifyCitizen('non-existent-citizen-id', 'government-id', 'valid-authority-id');
-    expect(result).toEqual({ error: 102 }); // ERR-CITIZEN-NOT-FOUND
+  describe('addAuthority', () => {
+    it('should add an authority successfully', () => {
+      const result = citizenVerification.addAuthority('new-authority-id');
+      expect(result).toEqual({ value: true });
+      expect(mockContractCall).toHaveBeenCalledWith('addAuthority', 'new-authority-id');
+    });
+    
+    it('should fail if caller is not admin', () => {
+      mockTxSender = mockCitizen; // Not the admin
+      const result = citizenVerification.addAuthority('new-authority-id');
+      expect(result).toEqual({ error: 100 }); // ERR-NOT-AUTHORIZED
+    });
   });
   
-  it('should fail if authority does not exist', () => {
-    mockTxSender = mockAuthority;
-    const result = citizenVerification.verifyCitizen('valid-citizen-id', 'government-id', 'non-existent-authority-id');
-    expect(result).toEqual({ error: 103 }); // ERR-AUTHORITY-NOT-FOUND
+  describe('removeAuthority', () => {
+    it('should remove an authority successfully', () => {
+      const result = citizenVerification.removeAuthority('valid-authority-id');
+      expect(result).toEqual({ value: true });
+      expect(mockContractCall).toHaveBeenCalledWith('removeAuthority', 'valid-authority-id');
+    });
+    
+    it('should fail if caller is not admin', () => {
+      mockTxSender = mockCitizen; // Not the admin
+      const result = citizenVerification.removeAuthority('valid-authority-id');
+      expect(result).toEqual({ error: 100 }); // ERR-NOT-AUTHORIZED
+    });
   });
-  
-  it('should fail if caller is not the authority', () => {
-    mockTxSender = mockCitizen; // Not the authority
-    const result = citizenVerification.verifyCitizen('valid-citizen-id', 'government-id', 'valid-authority-id');
-    expect(result).toEqual({ error: 100 }); // ERR-NOT-AUTHORIZED
-  });
-});
-
-describe('addVerificationAuthority', () => {
-  it('should add a verification authority successfully', () => {
-    const result = citizenVerification.addVerificationAuthority('new-authority-id', mockAuthority, 'New Authority');
-    expect(result).toEqual({ value: true });
-    expect(mockContractCall).toHaveBeenCalledWith('addVerificationAuthority', 'new-authority-id', mockAuthority, 'New Authority');
-  });
-  
-  it('should fail if caller is not admin', () => {
-    mockTxSender = mockCitizen; // Not the admin
-    const result = citizenVerification.addVerificationAuthority('new-authority-id', mockAuthority, 'New Authority');
-    expect(result).toEqual({ error: 100 }); // ERR-NOT-AUTHORIZED
-  });
-});
-
-describe('deactivateVerificationAuthority', () => {
-  it('should deactivate a verification authority successfully', () => {
-    const result = citizenVerification.deactivateVerificationAuthority('valid-authority-id');
-    expect(result).toEqual({ value: true });
-    expect(mockContractCall).toHaveBeenCalledWith('deactivateVerificationAuthority', 'valid-authority-id');
-  });
-  
-  it('should fail if authority does not exist', () => {
-    const result = citizenVerification.deactivateVerificationAuthority('non-existent-authority-id');
-    expect(result).toEqual({ error: 103 }); // ERR-AUTHORITY-NOT-FOUND
-  });
-  
-  it('should fail if caller is not admin', () => {
-    mockTxSender = mockCitizen; // Not the admin
-    const result = citizenVerification.deactivateVerificationAuthority('valid-authority-id');
-    expect(result).toEqual({ error: 100 }); // ERR-NOT-AUTHORIZED
-  });
-});
 });

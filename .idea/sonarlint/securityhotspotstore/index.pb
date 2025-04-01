@@ -13,3 +13,7 @@ Q
 !contracts/privacy-management.clar,d/6/d6fd6ce305a32fd8354eeff71966d78ebfeb1113
 P
  tests/privacy-management.test.ts,c/b/cb986d49352b6e44fa39e34af37ee11a183c0529
+M
+contracts/service-access.clar,6/9/697ba7a046d21468c6aeb04544ebf750f0855804
+L
+tests/service-access.test.ts,5/8/58e65724d7e53e2e2cfa485773e1983af6a93149
